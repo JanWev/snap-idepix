@@ -59,7 +59,7 @@ public class S2IdepixOp extends Operator {
 
     @Parameter(defaultValue = "2", interval = "[0,100]",
             label = " Width of cloud buffer (# of pixels)",
-            description = " The width of the 'safety buffer' around a pixel identified as cloudy.")
+            description = " The Manhattan radius of the diamond-shaped safety buffer around a cloudy pixel.")
     private int cloudBufferWidth;
 
     @Parameter(description = "The digital elevation model.", defaultValue = "SRTM 3Sec", label = "Digital Elevation Model")

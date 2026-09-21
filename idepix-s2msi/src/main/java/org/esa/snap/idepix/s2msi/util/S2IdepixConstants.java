@@ -27,7 +27,7 @@ public class S2IdepixConstants {
 
     public static final int IDEPIX_CLOUD_BUFFER = 4;
     public static final String IDEPIX_CLOUD_BUFFER_NAME = "IDEPIX_CLOUD_BUFFER";
-    public static final String IDEPIX_CLOUD_BUFFER_DESCR_TEXT = "A buffer of n pixels around a cloud. n is a user supplied parameter. Applied to pixels masked as 'cloud'";
+    public static final String IDEPIX_CLOUD_BUFFER_DESCR_TEXT = "A diamond-shaped buffer with a user-supplied Manhattan radius of n pixels around a cloud";
 
     public static final int IDEPIX_CLOUD_SHADOW = 5;
     public static final String IDEPIX_CLOUD_SHADOW_NAME = "IDEPIX_CLOUD_SHADOW";
