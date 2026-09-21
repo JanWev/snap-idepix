@@ -15,12 +15,14 @@ import org.esa.snap.core.util.ProductUtils;
 import org.esa.snap.idepix.s2msi.operators.cloudshadow.S2IdepixCloudShadowOp;
 import org.esa.snap.idepix.s2msi.operators.cloudshadow.S2IdepixPreCloudShadowOp;
 import org.esa.snap.idepix.s2msi.operators.mountainshadow.S2IdepixMountainShadowOp;
+import org.esa.snap.idepix.s2msi.util.S2IdepixUtils;
 
 import java.awt.Rectangle;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.esa.snap.idepix.s2msi.util.S2IdepixConstants.IDEPIX_CLASSIF_FLAGS;
+import static org.esa.snap.idepix.s2msi.util.S2IdepixConstants.IDEPIX_CLOUD;
 import static org.esa.snap.idepix.s2msi.util.S2IdepixConstants.IDEPIX_CLOUD_BUFFER;
 import static org.esa.snap.idepix.s2msi.util.S2IdepixConstants.IDEPIX_CLOUD_SHADOW;
 import static org.esa.snap.idepix.s2msi.util.S2IdepixConstants.IDEPIX_CLUSTERED_CLOUD_SHADOW;
@@ -94,6 +96,8 @@ public class S2IdepixPostProcessOp extends Operator {
     private Band cloudBufferFlagBand;
     private Band mountainShadowFlagBand;
     private Band cloudShadowFlagBand;
+    private int cloudShadowDilationRadius;
+    private int[][] cloudShadowDilationOffsets;
 
     @Override
     public void initialize() throws OperatorException {
@@ -114,6 +118,9 @@ public class S2IdepixPostProcessOp extends Operator {
 
         cloudShadowFlagBand = null;
         if (computeCloudShadow) {
+            cloudShadowDilationRadius = CloudShadowDilation.getRadius(
+                    S2IdepixUtils.determineResolution(l1cProduct));
+            cloudShadowDilationOffsets = CloudShadowDilation.createStarOffsets(cloudShadowDilationRadius);
             HashMap<String, Product> input = new HashMap<>();
             input.put("l1cProduct", l1cProduct);
             input.put("s2ClassifProduct", s2CloudBufferProduct);
@@ -185,30 +192,57 @@ public class S2IdepixPostProcessOp extends Operator {
             }
         }
         if (computeCloudShadow) {
-            final Tile flagTile = getSourceTile(cloudShadowFlagBand, targetRectangle);
+            final Rectangle sourceRectangle = CloudShadowDilation.extend(targetRectangle, cloudShadowDilationRadius,
+                    cloudShadowFlagBand.getRasterWidth(), cloudShadowFlagBand.getRasterHeight());
+            final Tile flagTile = getSourceTile(cloudShadowFlagBand, sourceRectangle);
             int clusteredCloudShadowFlag = (int) Math.pow(2, S2IdepixPreCloudShadowOp.F_CLOUD_SHADOW); //clustering algorithm
             int cloudBufferFlag = (int) Math.pow(2, S2IdepixPreCloudShadowOp.F_CLOUD_BUFFER);
             int potentialShadowFlag = (int) Math.pow(2, S2IdepixPreCloudShadowOp.F_POTENTIAL_CLOUD_SHADOW);
             int recommendedCloudShadow = (int) Math.pow(2, S2IdepixPreCloudShadowOp.F_RECOMMENDED_CLOUD_SHADOW);
+            final boolean[] dilatedCloudShadow = dilateCloudShadow(flagTile, sourceRectangle, targetRectangle,
+                    recommendedCloudShadow);
             for (int y = targetRectangle.y; y < targetRectangle.y + targetRectangle.height; y++) {
                 checkForCancellation();
                 for (int x = targetRectangle.x; x < targetRectangle.x + targetRectangle.width; x++) {
                     final int flagValue = flagTile.getSampleInt(x, y);
-                    if ((flagValue & recommendedCloudShadow) == recommendedCloudShadow ) {
+                    final boolean originalCloudShadow = hasFlag(flagValue, recommendedCloudShadow);
+                    final int targetIndex = (y - targetRectangle.y) * targetRectangle.width + x - targetRectangle.x;
+                    final boolean mayAddDilatedShadow = !targetTile.getSampleBit(x, y, IDEPIX_INVALID) &&
+                            !targetTile.getSampleBit(x, y, IDEPIX_CLOUD);
+                    if (originalCloudShadow || (dilatedCloudShadow[targetIndex] && mayAddDilatedShadow)) {
                         targetTile.setSample(x, y, IDEPIX_CLOUD_SHADOW, true);
                     }
-                    if ((flagValue & cloudBufferFlag) == cloudBufferFlag) {
+                    if (hasFlag(flagValue, cloudBufferFlag)) {
                         targetTile.setSample(x, y, IDEPIX_CLOUD_BUFFER, true);
                     }
-                    if ((flagValue & potentialShadowFlag) == potentialShadowFlag) {
+                    if (hasFlag(flagValue, potentialShadowFlag)) {
                         targetTile.setSample(x, y, IDEPIX_POTENTIAL_SHADOW, true);
                     }
-                    if ((flagValue & clusteredCloudShadowFlag) == clusteredCloudShadowFlag) {
+                    if (hasFlag(flagValue, clusteredCloudShadowFlag)) {
                         targetTile.setSample(x, y, IDEPIX_CLUSTERED_CLOUD_SHADOW, true);
                     }
                 }
             }
         }
+    }
+
+    private boolean[] dilateCloudShadow(Tile flagTile, Rectangle sourceRectangle, Rectangle targetRectangle,
+                                        int recommendedCloudShadowFlag) {
+        final boolean[] dilatedCloudShadow = new boolean[targetRectangle.width * targetRectangle.height];
+        for (int sourceY = sourceRectangle.y; sourceY < sourceRectangle.y + sourceRectangle.height; sourceY++) {
+            for (int sourceX = sourceRectangle.x; sourceX < sourceRectangle.x + sourceRectangle.width; sourceX++) {
+                if (!hasFlag(flagTile.getSampleInt(sourceX, sourceY), recommendedCloudShadowFlag)) {
+                    continue;
+                }
+                CloudShadowDilation.addStar(dilatedCloudShadow, targetRectangle.width, targetRectangle.height,
+                        sourceX - targetRectangle.x, sourceY - targetRectangle.y, cloudShadowDilationOffsets);
+            }
+        }
+        return dilatedCloudShadow;
+    }
+
+    private static boolean hasFlag(int flagValue, int flagMask) {
+        return (flagValue & flagMask) == flagMask;
     }
 
     private void combineFlags(int x, int y, Tile sourceFlagTile, Tile targetTile) {
