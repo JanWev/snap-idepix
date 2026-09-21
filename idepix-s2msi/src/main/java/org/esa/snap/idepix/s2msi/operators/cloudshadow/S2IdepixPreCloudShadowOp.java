@@ -2,7 +2,6 @@ package org.esa.snap.idepix.s2msi.operators.cloudshadow;
 
 import com.bc.ceres.core.ProgressMonitor;
 import org.esa.snap.core.datamodel.Band;
-import org.esa.snap.core.datamodel.CrsGeoCoding;
 import org.esa.snap.core.datamodel.FlagCoding;
 import org.esa.snap.core.datamodel.GeoPos;
 import org.esa.snap.core.datamodel.Mask;
@@ -28,6 +27,8 @@ import java.awt.Rectangle;
 import java.awt.geom.Point2D;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * @author Tonio Fincke, Dagmar Müller
@@ -41,6 +42,16 @@ import java.util.Map;
         description = "Preprocessing for algorithm detecting cloud shadow...")
 
 public class S2IdepixPreCloudShadowOp extends Operator {
+
+    private static final boolean PROFILE = Boolean.getBoolean("snap.idepix.s2msi.cloudshadow.profile");
+    private static final int PROFILE_INTERVAL = Math.max(1,
+            Integer.getInteger("snap.idepix.s2msi.cloudshadow.profile.interval", 10));
+
+    private final AtomicInteger profileTiles = new AtomicInteger();
+    private final LongAdder profileGeometryNanos = new LongAdder();
+    private final LongAdder profilePreparationNanos = new LongAdder();
+    private final LongAdder profileBulkShiftNanos = new LongAdder();
+    private final LongAdder profileTotalNanos = new LongAdder();
 
     @SourceProduct(description = "The classification product from which to take the classification band.")
     private Product s2ClassifProduct;
@@ -76,7 +87,6 @@ public class S2IdepixPreCloudShadowOp extends Operator {
     private final Map<Integer, double[][]> meanReflPerTile = new HashMap<>();
     private final Map<Integer, Integer> NCloudOverLand = new HashMap<>();
     private final Map<Integer, Integer> NCloudOverWater = new HashMap<>();
-    private final Map<Integer, Integer> NValidPixelTile = new HashMap<>();
 
     static double spatialResolution;  //[m]
     static int clusterCountDefine = 4;
@@ -161,6 +171,8 @@ public class S2IdepixPreCloudShadowOp extends Operator {
 
     @Override
     public void computeTileStack(Map<Band, Tile> targetTiles, Rectangle targetRectangle, ProgressMonitor pm) throws OperatorException {
+        final long totalStart = profileStart();
+        long stageStart = profileStart();
         //here: cloud path is calculated for center pixel sunZenith and sunAzimuth. sunAzimuth is corrected with view geometry.
         final Point2D[] cloudShadowRelativePath = CloudShadowUtils.getRelativePath(
                 minAltitude, sunZenithMean * MathUtils.DTOR, sunAzimuthMean * MathUtils.DTOR, maxcloudTop,
@@ -168,8 +180,12 @@ public class S2IdepixPreCloudShadowOp extends Operator {
                 getSourceProduct().getSceneRasterWidth(), spatialResolution, true, false);
 
         final Rectangle sourceRectangle = CloudShadowUtils.getSourceRectangle(getSourceProduct(), targetRectangle, cloudShadowRelativePath);
+        profileAdd(profileGeometryNanos, stageStart);
+        stageStart = profileStart();
         Tile sourceTileFlag1 = getSourceTile(sourceBandFlag1, sourceRectangle, new BorderExtenderConstant(new double[]{Double.NaN}));
         if (skipInvalidTiles && CloudShadowUtils.isCompletelyInvalid(sourceTileFlag1)) {
+            profileAdd(profileTotalNanos, totalStart);
+            profileTileCompleted(targetRectangle);
             return;
         }
 
@@ -180,31 +196,12 @@ public class S2IdepixPreCloudShadowOp extends Operator {
         final float[][] clusterData = {getSamples(sourceBandClusterA, sourceRectangle),
                 getSamples(sourceBandClusterB, sourceRectangle)};
 
-        float[] sourceLatitudes = new float[sourceLength];
-        float[] sourceLongitudes = new float[sourceLength];
-        if (getSourceProduct().getSceneGeoCoding() instanceof CrsGeoCoding) {
-            ((CrsGeoCoding) getSourceProduct().getSceneGeoCoding()).
-                    getPixels((int) sourceRectangle.getMinX(),
-                (int) sourceRectangle.getMinY(),
-                (int) sourceRectangle.getWidth(),
-                (int) sourceRectangle.getHeight(),
-                sourceLatitudes,
-                sourceLongitudes);
-        } else {
-            S2IdepixUtils.
-                    getPixels(getSourceProduct().getSceneGeoCoding(),
-                              (int) sourceRectangle.getMinX(),
-                              (int) sourceRectangle.getMinY(),
-                              (int) sourceRectangle.getWidth(),
-                              (int) sourceRectangle.getHeight(),
-                              sourceLatitudes,
-                              sourceLongitudes);
-        }
-
         FlagDetector flagDetector = new FlagDetector(sourceTileFlag1, sourceRectangle);
 
         PreparationMaskBand.prepareMaskBand(s2ClassifProduct.getSceneRasterWidth(),
                 s2ClassifProduct.getSceneRasterHeight(), sourceRectangle, flagArray, flagDetector);
+        profileAdd(profilePreparationNanos, stageStart);
+        stageStart = profileStart();
 
         final CloudBulkShifter cloudBulkShifter = new CloudBulkShifter();
         cloudBulkShifter.shiftCloudBulkAlongCloudPathType(sourceRectangle, targetRectangle, sunAzimuthMean,
@@ -213,8 +210,50 @@ public class S2IdepixPreCloudShadowOp extends Operator {
         meanReflPerTile.put(tileId, cloudBulkShifter.getMeanReflectanceAlongPath());
         NCloudOverLand.put(tileId, cloudBulkShifter.getNCloudOverLand());
         NCloudOverWater.put(tileId, cloudBulkShifter.getNCloudOverWater());
-        NValidPixelTile.put(tileId, cloudBulkShifter.getNValidPixel());
+        profileAdd(profileBulkShiftNanos, stageStart);
+        profileAdd(profileTotalNanos, totalStart);
+        profileTileCompleted(targetRectangle);
 
+    }
+
+    @Override
+    public void dispose() {
+        if (PROFILE) {
+            getLogger().info(String.format(
+                    "IdePix S2 cloud-shadow pre profile: tiles=%d, geometry=%.3fs, preparation=%.3fs, " +
+                            "bulkShift=%.3fs, total=%.3fs",
+                    profileTiles.get(), seconds(profileGeometryNanos), seconds(profilePreparationNanos),
+                    seconds(profileBulkShiftNanos), seconds(profileTotalNanos)));
+        }
+        super.dispose();
+    }
+
+    private static long profileStart() {
+        return PROFILE ? System.nanoTime() : 0L;
+    }
+
+    private static void profileAdd(LongAdder accumulator, long start) {
+        if (PROFILE) {
+            accumulator.add(System.nanoTime() - start);
+        }
+    }
+
+    private static double seconds(LongAdder nanoseconds) {
+        return nanoseconds.sum() / 1_000_000_000.0;
+    }
+
+    private void profileTileCompleted(Rectangle targetRectangle) {
+        if (PROFILE) {
+            int completed = profileTiles.incrementAndGet();
+            if (completed % PROFILE_INTERVAL == 0) {
+                getLogger().info(String.format(
+                        "IdePix S2 cloud-shadow pre progress: completedTiles=%d, lastTile=%s, geometry=%.3fs, " +
+                                "preparation=%.3fs, bulkShift=%.3fs, total=%.3fs",
+                        completed, targetRectangle, seconds(profileGeometryNanos),
+                        seconds(profilePreparationNanos), seconds(profileBulkShiftNanos),
+                        seconds(profileTotalNanos)));
+            }
+        }
     }
 
     Map<Integer, double[][]> getMeanReflPerTile() {
@@ -227,11 +266,6 @@ public class S2IdepixPreCloudShadowOp extends Operator {
 
     Map<Integer, Integer> getNCloudOverWaterPerTile() {
         return NCloudOverWater;
-    }
-
-    // todo - if this is not used we can stop computing it
-    Map<Integer, Integer> getNValidPixelTile() {
-        return NValidPixelTile;
     }
 
     private void attachFlagCoding(Band targetBandCloudShadow) {
