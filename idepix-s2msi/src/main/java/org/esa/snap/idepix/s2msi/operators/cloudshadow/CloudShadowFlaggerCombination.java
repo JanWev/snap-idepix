@@ -28,9 +28,9 @@ class CloudShadowFlaggerCombination {
 
     private final static int CLUSTER_COUNT = S2IdepixPostCloudShadowOp.clusterCountDefine;
 
-    void flagCloudShadowAreas(float[][] sourceBands, int[] flagArray, Map<Integer, List<Integer>> potentialShadowPositions,
-                              Map<Integer, List<Integer>> offsetAtPotentialShadow, Map<Integer, List<Integer>> cloudList,
-                              int bestOffset, Mode mode, int sourceWidth, int sourceHeight, int[] shadowIDArray, Point2D[] cloudPath) {
+    void flagCloudShadowAreas(float[][] sourceBands, int[] flagArray, List<CloudShadowObject> cloudObjects,
+                              CloudShadowMatcher cloudShadowMatcher, int bestOffset, Mode mode, int sourceWidth,
+                              int sourceHeight, int[] shadowIDArray, Point2D[] cloudPath) {
 
         this.flagArray = flagArray;
         this.bestOffset = bestOffset;
@@ -40,14 +40,18 @@ class CloudShadowFlaggerCombination {
 
         AnalyzerMode analyzerMode = new AnalyzerModeFactory().getAnalyzerMode(mode, sourceBands);
 
-        for (int key : potentialShadowPositions.keySet()) {
-            List<Integer> positions = potentialShadowPositions.get(key);
-            List<Integer> offsetAtPos = offsetAtPotentialShadow.get(key);
+        for (CloudShadowObject cloudObject : cloudObjects) {
+            final CloudShadowMatch match = cloudShadowMatcher.match(cloudObject);
+            if (match.getCloudId() != cloudObject.getId()) {
+                throw new IllegalArgumentException("Cloud-shadow match belongs to a different cloud.");
+            }
+            this.bestOffset = match.getOffset();
+            List<Integer> positions = cloudObject.getPotentialShadowPixels();
+            List<Integer> offsetAtPos = cloudObject.getPotentialShadowOffsets();
 
-            //caution! the cloud list has a different length!
-            this.cloud = cloudList.get(key);
+            this.cloud = cloudObject.getCloudPixels();
             this.cloudSize = cloud.size();
-            this.meanReflShift = computeMeanRefl(cloud, bestOffset, sourceBands[1], cloudPath);
+            this.meanReflShift = computeMeanRefl(cloud, this.bestOffset, sourceBands[1], cloudPath);
 
 
             analyzerMode.initArrays(positions.size());
@@ -60,6 +64,9 @@ class CloudShadowFlaggerCombination {
             }
             analyzerMode.doCloudShadowAnalysis(CLUSTER_COUNT * 2 + 1, shadowIDArray, sourceBands[1]);
         }
+
+        // Combination still uses the scene-wide shifted mask in this compatibility increment.
+        this.bestOffset = bestOffset;
 
         /*
          combining shifted and clustered cloud shadow: new flag cloud_shadow_comb
