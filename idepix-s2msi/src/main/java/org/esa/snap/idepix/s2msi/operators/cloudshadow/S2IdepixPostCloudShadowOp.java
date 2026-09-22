@@ -82,6 +82,9 @@ public class S2IdepixPostCloudShadowOp extends Operator {
             defaultValue = "true")
     private boolean usePerCloudShadowMatching;
 
+    @Parameter(description = "Whether cloud-buffer pixels cast cloud shadows", defaultValue = "false")
+    private boolean includeCloudBufferForShadow;
+
     @Parameter(description = "Offset along cloud path to minimum reflectance (over all tiles)", defaultValue = "0")
     private int bestOffset;
 
@@ -356,7 +359,8 @@ public class S2IdepixPostCloudShadowOp extends Operator {
                             sourceLongitudes);
         }
 
-        FlagDetector flagDetector = new FlagDetector(sourceTileFlag1, sourceRectangle);
+        FlagDetector flagDetector = new FlagDetector(
+                sourceTileFlag1, sourceRectangle, includeCloudBufferForShadow);
 
         PreparationMaskBand.prepareMaskBand(targetProduct.getSceneRasterWidth(), targetProduct.getSceneRasterHeight(),
                 sourceRectangle, flagArray, flagDetector);
