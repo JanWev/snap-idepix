@@ -66,6 +66,10 @@ public class S2IdepixPostProcessOp extends Operator {
     @Parameter(defaultValue = "false", label = "Include cloud buffer in cloud-shadow detection")
     private boolean includeCloudBufferForShadow;
 
+    @Parameter(defaultValue = "FIXED_60M", valueSet = {"FIXED_60M", "TWENTY_METRES_OR_INPUT"},
+            label = "Cloud-shadow working resolution")
+    private String cloudShadowWorkingResolution;
+
     @Parameter(defaultValue = "true", label = " Compute a cloud buffer")
     private boolean computeCloudBuffer;
 
@@ -140,6 +144,7 @@ public class S2IdepixPostProcessOp extends Operator {
             params.put("computeMountainShadow", false);
             params.put("usePerCloudShadowMatching", usePerCloudShadowMatching);
             params.put("includeCloudBufferForShadow", includeCloudBufferForShadow);
+            params.put("cloudShadowWorkingResolution", cloudShadowWorkingResolution);
             params.put("computeCloudBuffer", computeCloudBuffer);
             params.put("cloudBufferWidth", cloudBufferWidth);
             params.put("computeCloudBufferForCloudAmbiguous", computeCloudBufferForCloudAmbiguous);

@@ -60,6 +60,10 @@ public class S2IdepixOp extends Operator {
                     "Requires cloud-buffer computation to be enabled.")
     private boolean includeCloudBufferForShadow;
 
+    @Parameter(defaultValue = "FIXED_60M", valueSet = {"FIXED_60M", "TWENTY_METRES_OR_INPUT"},
+            label = "Cloud-shadow working resolution")
+    private String cloudShadowWorkingResolution;
+
     @Parameter(defaultValue = "true", label = " Compute a cloud buffer")
     private boolean computeCloudBuffer;
 
@@ -178,6 +182,7 @@ public class S2IdepixOp extends Operator {
             params.put("computeCloudShadow", computeCloudShadow);
             params.put("usePerCloudShadowMatching", usePerCloudShadowMatching);
             params.put("includeCloudBufferForShadow", includeCloudBufferForShadow);
+            params.put("cloudShadowWorkingResolution", cloudShadowWorkingResolution);
             params.put("computeCloudBuffer", computeCloudBuffer);
             params.put("cloudBufferWidth", cloudBufferWidth);
             params.put("computeCloudBufferForCloudAmbiguous", computeCloudBufferForCloudAmbiguous);

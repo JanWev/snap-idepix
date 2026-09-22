@@ -70,6 +70,9 @@ public class S2IdepixCloudShadowOp extends Operator {
     @Parameter(description = "Whether cloud-buffer pixels cast cloud shadows", defaultValue = "false")
     private boolean includeCloudBufferForShadow;
 
+    @Parameter(defaultValue = "FIXED_60M", valueSet = {"FIXED_60M", "TWENTY_METRES_OR_INPUT"})
+    private String cloudShadowWorkingResolution;
+
     @Parameter(defaultValue = "true", label = " Compute a cloud buffer")
     private boolean computeCloudBuffer;
 
@@ -122,7 +125,8 @@ public class S2IdepixCloudShadowOp extends Operator {
 
         int sourceResolution = S2IdepixUtils.determineResolution(l1cProduct);
 
-        Product[] internalSourceProducts = getInternalSourceProducts(sourceResolution);
+        int workingResolution = CloudShadowWorkingResolution.valueOf(cloudShadowWorkingResolution).getWorkingResolution(sourceResolution);
+        Product[] internalSourceProducts = getInternalSourceProducts(sourceResolution, workingResolution);
 
         Product classificationProduct = internalSourceProducts[0];
         final Product s2BandsProduct = internalSourceProducts[1];
@@ -196,7 +200,7 @@ public class S2IdepixCloudShadowOp extends Operator {
         //Generation of all cloud shadow flags
         Product postProduct = GPF.createProduct("Idepix.S2.CloudShadow.Postprocess", postParams, postInput);
 
-        setTargetProduct(prepareTargetProduct(sourceResolution, postProduct));
+        setTargetProduct(prepareTargetProduct(sourceResolution, workingResolution, postProduct));
     }
 
     private float getGeometryMean(Product classificationProduct, String rdnName) {
@@ -230,35 +234,35 @@ public class S2IdepixCloudShadowOp extends Operator {
         return (float) (sunAzimuthMean + diff_phi);
     }
 
-     private Product[] getInternalSourceProducts(int resolution) {
-        if (resolution == 60) {
+     private Product[] getInternalSourceProducts(int resolution, int workingResolution) {
+        if (resolution == workingResolution) {
             return new Product[]{s2ClassifProduct, s2BandsProduct};
         }
 
         // Keep shadow detection tied to the classification delivered at the input resolution. Reclassifying
         // resampled reflectances here is expensive and can produce a different cloud population.
-        final Product resampledClassifProduct = resampleForCloudShadow(s2ClassifProduct);
-        final Product resampledBandsProduct = resampleForCloudShadow(s2BandsProduct);
+        final Product resampledClassifProduct = resampleForCloudShadow(s2ClassifProduct, workingResolution);
+        final Product resampledBandsProduct = resampleForCloudShadow(s2BandsProduct, workingResolution);
         return new Product[]{resampledClassifProduct, resampledBandsProduct};
     }
 
-    private Product resampleForCloudShadow(Product sourceProduct) {
+    private Product resampleForCloudShadow(Product sourceProduct, int workingResolution) {
         final HashMap<String, Product> resamplingInput = new HashMap<>();
         resamplingInput.put("sourceProduct", sourceProduct);
-        return GPF.createProduct("Resample", createCloudShadowResamplingParameters(), resamplingInput);
+        return GPF.createProduct("Resample", createCloudShadowResamplingParameters(workingResolution), resamplingInput);
     }
 
-    static Map<String, Object> createCloudShadowResamplingParameters() {
+    static Map<String, Object> createCloudShadowResamplingParameters(int workingResolution) {
         final Map<String, Object> parameters = new HashMap<>();
         parameters.put("upsampling", "Nearest");
         parameters.put("downsampling", "Mean");
         parameters.put("flagDownsampling", "FlagOr");
-        parameters.put("targetResolution", 60);
+        parameters.put("targetResolution", workingResolution);
         return parameters;
     }
 
-    private Product prepareTargetProduct(int resolution, Product postProcessedProduct) {
-        if (resolution == 60) {
+    private Product prepareTargetProduct(int resolution, int workingResolution, Product postProcessedProduct) {
+        if (resolution == workingResolution) {
             return postProcessedProduct;
         }
 
