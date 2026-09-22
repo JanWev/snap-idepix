@@ -33,7 +33,7 @@ class CloudShadowFlaggerCombination {
     void flagCloudShadowAreas(float[][] sourceBands, int[] flagArray, List<CloudShadowObject> cloudObjects,
                               CloudShadowMatcher cloudShadowMatcher, int bestOffset,
                               boolean usePerCloudShadowMatching, Mode mode, int sourceWidth, int sourceHeight,
-                              int[] shadowIDArray, Point2D[] cloudPath) {
+                              int[] shadowIDArray, Point2D[] cloudPath, byte[] fmaskPotential) {
 
         this.flagArray = flagArray;
         this.bestOffset = bestOffset;
@@ -41,7 +41,7 @@ class CloudShadowFlaggerCombination {
         this.height = sourceHeight;
         this.cloudPath = cloudPath;
 
-        AnalyzerMode analyzerMode = new AnalyzerModeFactory().getAnalyzerMode(mode, sourceBands);
+        AnalyzerMode analyzerMode = fmaskPotential == null ? new AnalyzerModeFactory().getAnalyzerMode(mode, sourceBands) : null;
 
         for (CloudShadowObject cloudObject : cloudObjects) {
             final CloudShadowMatch match = cloudShadowMatcher.match(cloudObject);
@@ -57,15 +57,22 @@ class CloudShadowFlaggerCombination {
             this.meanReflShift = computeMeanRefl(cloud, this.bestOffset, sourceBands[1], cloudPath);
 
 
-            analyzerMode.initArrays(positions.size());
-            for (int i = 0; i < positions.size(); i++) {
-
-                int index = positions.get(i);
-
-                int offset = offsetAtPos.get(i);
-                analyzerMode.doIterationStep(index, offset);
+            if (fmaskPotential != null) {
+                for (int index : positions) {
+                    if (fmaskPotential[index] != 0 &&
+                            (flagArray[index] & (PreparationMaskBand.CLOUD_FLAG | PreparationMaskBand.INVALID_FLAG)) == 0) {
+                        flagArray[index] |= PreparationMaskBand.CLOUD_SHADOW_FLAG;
+                    }
+                }
+            } else {
+                analyzerMode.initArrays(positions.size());
+                for (int i = 0; i < positions.size(); i++) {
+                    int index = positions.get(i);
+                    int offset = offsetAtPos.get(i);
+                    analyzerMode.doIterationStep(index, offset);
+                }
+                analyzerMode.doCloudShadowAnalysis(CLUSTER_COUNT * 2 + 1, shadowIDArray, sourceBands[1]);
             }
-            analyzerMode.doCloudShadowAnalysis(CLUSTER_COUNT * 2 + 1, shadowIDArray, sourceBands[1]);
         }
 
         // The established combination remains the baseline; local matching may conservatively add components below.

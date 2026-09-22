@@ -70,9 +70,12 @@ public class S2IdepixCloudShadowOp extends Operator {
     @Parameter(description = "Whether cloud-buffer pixels cast cloud shadows", defaultValue = "false")
     private boolean includeCloudBufferForShadow;
 
-    @Parameter(defaultValue = "B8A_B3", valueSet = {"B8A_B3", "B8_B11"},
+    @Parameter(defaultValue = "B8A_B3", valueSet = {"B8A_B3", "B8_B11", "FMASK_FILL_DEPTH"},
             description = "Spectral pair used for potential-shadow clustering.")
     private String cloudShadowSpectralBands;
+
+    @Parameter(defaultValue = "0.02", interval = "[0.0,1.0]")
+    private float fmaskFillDepthThreshold;
 
     @Parameter(defaultValue = "true", label = " Compute a cloud buffer")
     private boolean computeCloudBuffer;
@@ -190,6 +193,7 @@ public class S2IdepixCloudShadowOp extends Operator {
         postParams.put("usePerCloudShadowMatching", usePerCloudShadowMatching);
         postParams.put("includeCloudBufferForShadow", includeCloudBufferForShadow);
         postParams.put("cloudShadowSpectralBands", cloudShadowSpectralBands);
+        postParams.put("fmaskFillDepthThreshold", fmaskFillDepthThreshold);
         postParams.put("bestOffset", bestOffset);
         postParams.put("mode", mode);
         postParams.put("sunZenithMean", sunZenithMean);

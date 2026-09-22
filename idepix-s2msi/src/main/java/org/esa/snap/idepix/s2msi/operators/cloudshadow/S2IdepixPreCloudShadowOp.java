@@ -74,7 +74,7 @@ public class S2IdepixPreCloudShadowOp extends Operator {
     @Parameter(description = "Whether cloud-buffer pixels cast cloud shadows", defaultValue = "false")
     private boolean includeCloudBufferForShadow;
 
-    @Parameter(defaultValue = "B8A_B3", valueSet = {"B8A_B3", "B8_B11"},
+    @Parameter(defaultValue = "B8A_B3", valueSet = {"B8A_B3", "B8_B11", "FMASK_FILL_DEPTH"},
             description = "Spectral pair used for potential-shadow clustering.")
     private String cloudShadowSpectralBands;
 

@@ -27,6 +27,7 @@ import javax.media.jai.BorderExtenderConstant;
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.Point2D;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -85,9 +86,12 @@ public class S2IdepixPostCloudShadowOp extends Operator {
     @Parameter(description = "Whether cloud-buffer pixels cast cloud shadows", defaultValue = "false")
     private boolean includeCloudBufferForShadow;
 
-    @Parameter(defaultValue = "B8A_B3", valueSet = {"B8A_B3", "B8_B11"},
+    @Parameter(defaultValue = "B8A_B3", valueSet = {"B8A_B3", "B8_B11", "FMASK_FILL_DEPTH"},
             description = "Spectral pair used for potential-shadow clustering.")
     private String cloudShadowSpectralBands;
+
+    @Parameter(defaultValue = "0.02", interval = "[0.0,1.0]")
+    private float fmaskFillDepthThreshold;
 
     @Parameter(description = "Offset along cloud path to minimum reflectance (over all tiles)", defaultValue = "0")
     private int bestOffset;
@@ -105,6 +109,7 @@ public class S2IdepixPostCloudShadowOp extends Operator {
     private Band sourceBandClusterB;
 
     private Band sourceBandFlag1;
+    private byte[] fmaskPotentialShadow;
 
     private RasterDataNode sourceAltitude;
 
@@ -188,6 +193,9 @@ public class S2IdepixPostCloudShadowOp extends Operator {
         minAltitude = 0;
 
         sourceBandFlag1 = s2ClassifProduct.getBand(sourceFlagName1);
+        if (CloudShadowSpectralBands.fromParameter(cloudShadowSpectralBands).usesFmaskFillDepth()) {
+            fmaskPotentialShadow = createFmaskPotentialShadow();
+        }
 
         spatialResolution = S2IdepixUtils.determineResolution(getSourceProduct());
         switch (mode) {
@@ -339,6 +347,7 @@ public class S2IdepixPostCloudShadowOp extends Operator {
         final float[] altitude = getSamples(sourceAltitude, sourceRectangle);
         final float[][] clusterData = {getSamples(sourceBandClusterA, sourceRectangle),
                 getSamples(sourceBandClusterB, sourceRectangle)};
+        final byte[] fmaskPotential = getFmaskPotentialShadow(sourceRectangle);
 
         float[] sourceLatitudes = new float[sourceLength];
         float[] sourceLongitudes = new float[sourceLength];
@@ -414,7 +423,7 @@ public class S2IdepixPostCloudShadowOp extends Operator {
             final CloudShadowFlaggerCombination cloudShadowFlagger = new CloudShadowFlaggerCombination();
             cloudShadowFlagger.flagCloudShadowAreas(clusterData, flagArray, cloudObjects,
                     cloudShadowMatcher, bestOffset, usePerCloudShadowMatching, analysisMode, sourceWidth, sourceHeight,
-                    shadowIDArray, cloudShadowRelativePath);
+                    shadowIDArray, cloudShadowRelativePath, fmaskPotential);
             profileLocalMatches.add(cloudShadowFlagger.getLocalMatchCount());
             profileLocallyPromotedPixels.add(cloudShadowFlagger.getLocallyPromotedPixelCount());
             profileAdd(profileClusteringNanos, stageStart);
@@ -453,6 +462,48 @@ public class S2IdepixPostCloudShadowOp extends Operator {
         profileAdd(profileOutputNanos, stageStart);
         profileAdd(profileTotalNanos, totalStart);
         profileTileCompleted(targetRectangle);
+    }
+
+    private byte[] createFmaskPotentialShadow() {
+        final int width = s2BandsProduct.getSceneRasterWidth();
+        final int height = s2BandsProduct.getSceneRasterHeight();
+        final int length = width * height;
+        final float[] nir = new float[length];
+        final float[] swir1 = new float[length];
+        final int[] flags = new int[length];
+        try {
+            sourceBandClusterA.readPixels(0, 0, width, height, nir);
+            sourceBandClusterB.readPixels(0, 0, width, height, swir1);
+            sourceBandFlag1.readPixels(0, 0, width, height, flags);
+        } catch (IOException e) {
+            throw new OperatorException("Cannot read full-scene input for Fmask fill-depth evidence.", e);
+        }
+        return FmaskFillDepth.potentialShadow(nir, swir1, toPreparationFlags(flags), width, height,
+                fmaskFillDepthThreshold);
+    }
+
+    private static int[] toPreparationFlags(int[] idepixFlags) {
+        final int[] result = new int[idepixFlags.length];
+        for (int i = 0; i < idepixFlags.length; i++) {
+            if ((idepixFlags[i] & (1 << S2IdepixConstants.IDEPIX_INVALID)) != 0) result[i] |= PreparationMaskBand.INVALID_FLAG;
+            if ((idepixFlags[i] & (1 << S2IdepixConstants.IDEPIX_CLOUD)) != 0) result[i] |= PreparationMaskBand.CLOUD_FLAG;
+            if ((idepixFlags[i] & (1 << S2IdepixConstants.IDEPIX_LAND)) != 0) result[i] |= PreparationMaskBand.LAND_FLAG;
+        }
+        return result;
+    }
+
+    private byte[] getFmaskPotentialShadow(Rectangle sourceRectangle) {
+        if (fmaskPotentialShadow == null) return null;
+        final int productWidth = targetProduct.getSceneRasterWidth();
+        final int productHeight = targetProduct.getSceneRasterHeight();
+        final byte[] result = new byte[sourceRectangle.width * sourceRectangle.height];
+        for (int y = 0; y < sourceRectangle.height; y++) for (int x = 0; x < sourceRectangle.width; x++) {
+            final int sourceX = sourceRectangle.x + x, sourceY = sourceRectangle.y + y;
+            if (sourceX >= 0 && sourceY >= 0 && sourceX < productWidth && sourceY < productHeight) {
+                result[y * sourceRectangle.width + x] = fmaskPotentialShadow[sourceY * productWidth + sourceX];
+            }
+        }
+        return result;
     }
 
     private Band getClusterBand(Product product, int index) {
