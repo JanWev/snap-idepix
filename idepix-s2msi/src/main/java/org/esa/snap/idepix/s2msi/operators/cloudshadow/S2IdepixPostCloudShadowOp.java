@@ -59,6 +59,8 @@ public class S2IdepixPostCloudShadowOp extends Operator {
     private final LongAdder profileGapFinderNanos = new LongAdder();
     private final LongAdder profileOutputNanos = new LongAdder();
     private final LongAdder profileTotalNanos = new LongAdder();
+    private final LongAdder profileLocalMatches = new LongAdder();
+    private final LongAdder profileLocallyPromotedPixels = new LongAdder();
 
     @SourceProduct(description = "The classification product from which to take the classification band.")
     private Product s2ClassifProduct;
@@ -75,6 +77,10 @@ public class S2IdepixPostCloudShadowOp extends Operator {
 
     @Parameter(description = "Whether to also compute mountain shadow", defaultValue = "true")
     private boolean computeMountainShadow;
+
+    @Parameter(description = "Whether to search a local cloud-shadow offset for each connected cloud",
+            defaultValue = "true")
+    private boolean usePerCloudShadowMatching;
 
     @Parameter(description = "Offset along cloud path to minimum reflectance (over all tiles)", defaultValue = "0")
     private int bestOffset;
@@ -401,8 +407,10 @@ public class S2IdepixPostCloudShadowOp extends Operator {
             stageStart = profileStart();
             final CloudShadowFlaggerCombination cloudShadowFlagger = new CloudShadowFlaggerCombination();
             cloudShadowFlagger.flagCloudShadowAreas(clusterData, flagArray, cloudObjects,
-                    cloudShadowMatcher, bestOffset, analysisMode, sourceWidth, sourceHeight,
+                    cloudShadowMatcher, bestOffset, usePerCloudShadowMatching, analysisMode, sourceWidth, sourceHeight,
                     shadowIDArray, cloudShadowRelativePath);
+            profileLocalMatches.add(cloudShadowFlagger.getLocalMatchCount());
+            profileLocallyPromotedPixels.add(cloudShadowFlagger.getLocallyPromotedPixelCount());
             profileAdd(profileClusteringNanos, stageStart);
 
             // shifted cloud mask in cloud gaps.
@@ -447,11 +455,11 @@ public class S2IdepixPostCloudShadowOp extends Operator {
             getLogger().info(String.format(
                     "IdePix S2 cloud-shadow post profile: tiles=%d, geometry=%.3fs, preparation=%.3fs, " +
                             "components=%.3fs, potentialShadow=%.3fs, clustering=%.3fs, gapFinder=%.3fs, " +
-                            "output=%.3fs, total=%.3fs",
+                            "output=%.3fs, total=%.3fs, localMatches=%d, locallyPromotedPixels=%d",
                     profileTiles.get(), seconds(profileGeometryNanos), seconds(profilePreparationNanos),
                     seconds(profileComponentsNanos), seconds(profilePotentialShadowNanos),
                     seconds(profileClusteringNanos), seconds(profileGapFinderNanos), seconds(profileOutputNanos),
-                    seconds(profileTotalNanos)));
+                    seconds(profileTotalNanos), profileLocalMatches.sum(), profileLocallyPromotedPixels.sum()));
         }
         super.dispose();
     }
