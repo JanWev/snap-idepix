@@ -71,6 +71,9 @@ public class S2IdepixPreCloudShadowOp extends Operator {
     @Parameter(notNull=true)
     private float sunAzimuthMean;
 
+    @Parameter(description = "Whether cloud-buffer pixels cast cloud shadows", defaultValue = "false")
+    private boolean includeCloudBufferForShadow;
+
     private final static double MAX_CLOUD_HEIGHT = 8000.;
 
     private Band sourceBandClusterA;
@@ -196,7 +199,8 @@ public class S2IdepixPreCloudShadowOp extends Operator {
         final float[][] clusterData = {getSamples(sourceBandClusterA, sourceRectangle),
                 getSamples(sourceBandClusterB, sourceRectangle)};
 
-        FlagDetector flagDetector = new FlagDetector(sourceTileFlag1, sourceRectangle);
+        FlagDetector flagDetector = new FlagDetector(
+                sourceTileFlag1, sourceRectangle, includeCloudBufferForShadow);
 
         PreparationMaskBand.prepareMaskBand(s2ClassifProduct.getSceneRasterWidth(),
                 s2ClassifProduct.getSceneRasterHeight(), sourceRectangle, flagArray, flagDetector);
