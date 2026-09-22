@@ -384,6 +384,9 @@ public class S2IdepixPostCloudShadowOp extends Operator {
             profileAdd(profilePotentialShadowNanos, stageStart);
             final Map<Integer, List<Integer>> potentialShadowPositions = identifiedPcs.indexToPositions;
             final Map<Integer, List<Integer>> offsetAtPotentialShadow = identifiedPcs.offsetAtPositions;
+            final List<CloudShadowObject> cloudObjects = CloudShadowObject.fromLegacyMaps(
+                    cloudList, potentialShadowPositions, offsetAtPotentialShadow);
+            final CloudShadowMatcher cloudShadowMatcher = new SceneBestOffsetCloudShadowMatcher(bestOffset);
 
             getLogger().fine("potential shadow is ready");
             // shifting by offset, but looking into water, land and all pixel.
@@ -397,8 +400,8 @@ public class S2IdepixPostCloudShadowOp extends Operator {
             // shifting the shadow is done before and a correction is included, if bestOffset > 0
             stageStart = profileStart();
             final CloudShadowFlaggerCombination cloudShadowFlagger = new CloudShadowFlaggerCombination();
-            cloudShadowFlagger.flagCloudShadowAreas(clusterData, flagArray, potentialShadowPositions,
-                    offsetAtPotentialShadow, cloudList, bestOffset, analysisMode, sourceWidth, sourceHeight,
+            cloudShadowFlagger.flagCloudShadowAreas(clusterData, flagArray, cloudObjects,
+                    cloudShadowMatcher, bestOffset, analysisMode, sourceWidth, sourceHeight,
                     shadowIDArray, cloudShadowRelativePath);
             profileAdd(profileClusteringNanos, stageStart);
 
