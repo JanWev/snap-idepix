@@ -85,10 +85,6 @@ public class S2IdepixPostCloudShadowOp extends Operator {
     @Parameter(description = "Whether cloud-buffer pixels cast cloud shadows", defaultValue = "false")
     private boolean includeCloudBufferForShadow;
 
-    @Parameter(description = "Whether to add shifted cloud-shadow components in detected cloud gaps",
-            defaultValue = "false")
-    private boolean useCloudGapRecovery;
-
     @Parameter(description = "Offset along cloud path to minimum reflectance (over all tiles)", defaultValue = "0")
     private int bestOffset;
 
@@ -425,7 +421,7 @@ public class S2IdepixPostCloudShadowOp extends Operator {
             // the sourceRectangle has to be large enough, larger than the spatial filter with 1000m radius!
             double kernelRadius = 1000.;
             int blockSize = 2 * (int) Math.ceil(kernelRadius / spatialResolution) + 1;
-            if (shouldRunCloudGapRecovery(useCloudGapRecovery, bestOffset, blockSize, sourceWidth, sourceHeight)) {
+            if (bestOffset > 0 && blockSize < Math.min(sourceHeight, sourceWidth)) {
                 stageStart = profileStart();
                 final CloudShadowFlaggerShiftInCloudGaps test = new CloudShadowFlaggerShiftInCloudGaps();
                 cloudTestArray = test.setShiftedCloudInCloudGaps(sourceRectangle, flagArray, cloudList,
@@ -455,11 +451,6 @@ public class S2IdepixPostCloudShadowOp extends Operator {
         profileAdd(profileOutputNanos, stageStart);
         profileAdd(profileTotalNanos, totalStart);
         profileTileCompleted(targetRectangle);
-    }
-
-    static boolean shouldRunCloudGapRecovery(boolean useCloudGapRecovery, int bestOffset, int blockSize,
-                                             int sourceWidth, int sourceHeight) {
-        return useCloudGapRecovery && bestOffset > 0 && blockSize < Math.min(sourceHeight, sourceWidth);
     }
 
     @Override
