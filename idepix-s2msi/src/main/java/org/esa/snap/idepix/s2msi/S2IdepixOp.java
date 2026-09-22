@@ -60,11 +60,6 @@ public class S2IdepixOp extends Operator {
                     "Requires cloud-buffer computation to be enabled.")
     private boolean includeCloudBufferForShadow;
 
-    @Parameter(defaultValue = "false", label = " Use cloud-gap shadow recovery",
-            description = "Add geometrically shifted cloud-shadow components in detected cloud gaps. " +
-                    "This legacy recovery heuristic does not require spectral cluster confirmation.")
-    private boolean useCloudGapRecovery;
-
     @Parameter(defaultValue = "true", label = " Compute a cloud buffer")
     private boolean computeCloudBuffer;
 
@@ -183,7 +178,6 @@ public class S2IdepixOp extends Operator {
             params.put("computeCloudShadow", computeCloudShadow);
             params.put("usePerCloudShadowMatching", usePerCloudShadowMatching);
             params.put("includeCloudBufferForShadow", includeCloudBufferForShadow);
-            params.put("useCloudGapRecovery", useCloudGapRecovery);
             params.put("computeCloudBuffer", computeCloudBuffer);
             params.put("cloudBufferWidth", cloudBufferWidth);
             params.put("computeCloudBufferForCloudAmbiguous", computeCloudBufferForCloudAmbiguous);

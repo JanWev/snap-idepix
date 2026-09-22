@@ -70,10 +70,6 @@ public class S2IdepixCloudShadowOp extends Operator {
     @Parameter(description = "Whether cloud-buffer pixels cast cloud shadows", defaultValue = "false")
     private boolean includeCloudBufferForShadow;
 
-    @Parameter(description = "Whether to add shifted cloud-shadow components in detected cloud gaps",
-            defaultValue = "false")
-    private boolean useCloudGapRecovery;
-
     @Parameter(defaultValue = "true", label = " Compute a cloud buffer")
     private boolean computeCloudBuffer;
 
@@ -188,7 +184,6 @@ public class S2IdepixCloudShadowOp extends Operator {
         postParams.put("computeMountainShadow", computeMountainShadow);
         postParams.put("usePerCloudShadowMatching", usePerCloudShadowMatching);
         postParams.put("includeCloudBufferForShadow", includeCloudBufferForShadow);
-        postParams.put("useCloudGapRecovery", useCloudGapRecovery);
         postParams.put("bestOffset", bestOffset);
         postParams.put("mode", mode);
         postParams.put("sunZenithMean", sunZenithMean);
