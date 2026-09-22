@@ -60,6 +60,9 @@ public class S2IdepixPostProcessOp extends Operator {
     @Parameter(defaultValue = "true", label = "Compute cloud shadow", description = "Compute cloud shadow")
     private boolean computeCloudShadow;
 
+    @Parameter(defaultValue = "true", label = "Use per-cloud shadow matching")
+    private boolean usePerCloudShadowMatching;
+
     @Parameter(defaultValue = "true", label = " Compute a cloud buffer")
     private boolean computeCloudBuffer;
 
@@ -132,6 +135,7 @@ public class S2IdepixPostProcessOp extends Operator {
             //      - add || computeMountainShadow to the condition above
             //      - consider the flag results in computeTile
             params.put("computeMountainShadow", false);
+            params.put("usePerCloudShadowMatching", usePerCloudShadowMatching);
             params.put("computeCloudBuffer", computeCloudBuffer);
             params.put("cloudBufferWidth", cloudBufferWidth);
             params.put("computeCloudBufferForCloudAmbiguous", computeCloudBufferForCloudAmbiguous);

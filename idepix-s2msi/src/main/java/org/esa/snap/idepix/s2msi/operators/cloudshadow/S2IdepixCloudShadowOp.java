@@ -63,6 +63,10 @@ public class S2IdepixCloudShadowOp extends Operator {
     @Parameter(description = "Whether to also compute mountain shadow", defaultValue = "true")
     private boolean computeMountainShadow;
 
+    @Parameter(description = "Whether to search a local cloud-shadow offset for each connected cloud",
+            defaultValue = "true")
+    private boolean usePerCloudShadowMatching;
+
     @Parameter(defaultValue = "true", label = " Compute a cloud buffer")
     private boolean computeCloudBuffer;
 
@@ -174,6 +178,7 @@ public class S2IdepixCloudShadowOp extends Operator {
         //put in here the input products that are required by the post-processing operator
         Map<String, Object> postParams = new HashMap<>();
         postParams.put("computeMountainShadow", computeMountainShadow);
+        postParams.put("usePerCloudShadowMatching", usePerCloudShadowMatching);
         postParams.put("bestOffset", bestOffset);
         postParams.put("mode", mode);
         postParams.put("sunZenithMean", sunZenithMean);

@@ -51,6 +51,10 @@ public class S2IdepixOp extends Operator {
     @Parameter(defaultValue = "false", label = " Compute cloud shadow")
     private boolean computeCloudShadow = false;
 
+    @Parameter(defaultValue = "true", label = " Use per-cloud shadow matching",
+            description = "Search locally around the scene-wide cloud-shadow offset for each connected cloud.")
+    private boolean usePerCloudShadowMatching = true;
+
     @Parameter(defaultValue = "true", label = " Compute a cloud buffer")
     private boolean computeCloudBuffer;
 
@@ -167,6 +171,7 @@ public class S2IdepixOp extends Operator {
             Map<String, Object> params = new HashMap<>();
             params.put("computeMountainShadow", computeMountainShadow);
             params.put("computeCloudShadow", computeCloudShadow);
+            params.put("usePerCloudShadowMatching", usePerCloudShadowMatching);
             params.put("computeCloudBuffer", computeCloudBuffer);
             params.put("cloudBufferWidth", cloudBufferWidth);
             params.put("computeCloudBufferForCloudAmbiguous", computeCloudBufferForCloudAmbiguous);

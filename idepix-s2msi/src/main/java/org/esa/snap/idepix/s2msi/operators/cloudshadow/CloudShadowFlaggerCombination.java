@@ -22,6 +22,8 @@ class CloudShadowFlaggerCombination {
     private int cloudSize;
     private List<Integer> cloud;
     private Point2D[] cloudPath;
+    private int localMatchCount;
+    private int locallyPromotedPixelCount;
 
     // for testing, which cluster to use: the one, which mean distance is closer to the shift, which has been calculated before...
     //private int offsetCloudShift;
@@ -29,8 +31,9 @@ class CloudShadowFlaggerCombination {
     private final static int CLUSTER_COUNT = S2IdepixPostCloudShadowOp.clusterCountDefine;
 
     void flagCloudShadowAreas(float[][] sourceBands, int[] flagArray, List<CloudShadowObject> cloudObjects,
-                              CloudShadowMatcher cloudShadowMatcher, int bestOffset, Mode mode, int sourceWidth,
-                              int sourceHeight, int[] shadowIDArray, Point2D[] cloudPath) {
+                              CloudShadowMatcher cloudShadowMatcher, int bestOffset,
+                              boolean usePerCloudShadowMatching, Mode mode, int sourceWidth, int sourceHeight,
+                              int[] shadowIDArray, Point2D[] cloudPath) {
 
         this.flagArray = flagArray;
         this.bestOffset = bestOffset;
@@ -65,7 +68,7 @@ class CloudShadowFlaggerCombination {
             analyzerMode.doCloudShadowAnalysis(CLUSTER_COUNT * 2 + 1, shadowIDArray, sourceBands[1]);
         }
 
-        // Combination still uses the scene-wide shifted mask in this compatibility increment.
+        // The established combination remains the baseline; local matching may conservatively add components below.
         this.bestOffset = bestOffset;
 
         /*
@@ -89,6 +92,21 @@ class CloudShadowFlaggerCombination {
             Map<Integer, List<Integer>> clusteredShadowTileID = testContinuousShadow.computeAreaID(width, height, shadowIDArray, false);
 
             setCombinedCloudShadowFlagOnTile(clusteredShadowTileID);
+            if (usePerCloudShadowMatching) {
+                final CloudShadowMatcher localMatcher = new LocalCloudShadowMatcher(bestOffset, width, height,
+                        flagArray, shadowIDArray, sourceBands, cloudPath);
+                for (CloudShadowObject cloudObject : cloudObjects) {
+                    final CloudShadowMatch localMatch = localMatcher.match(cloudObject);
+                    if (localMatch.getSource() == CloudShadowMatch.Source.LOCAL_SEARCH) {
+                        final int promotedPixels = CloudShadowComponentPromoter.promote(
+                                localMatch.getShadowComponentIds(), clusteredShadowTileID, flagArray);
+                        if (promotedPixels > 0) {
+                            localMatchCount++;
+                            locallyPromotedPixelCount += promotedPixels;
+                        }
+                    }
+                }
+            }
         }
 
     }
@@ -209,6 +227,14 @@ class CloudShadowFlaggerCombination {
         }
 
 
+    }
+
+    int getLocalMatchCount() {
+        return localMatchCount;
+    }
+
+    int getLocallyPromotedPixelCount() {
+        return locallyPromotedPixelCount;
     }
 
     private void setANDTestCombinedCloudShadowFlag(List<Integer> cloud, int Offset, int indexForOffset, Point2D[] cloudPath, Map<Integer, List<Integer>> ListShadowID) {
