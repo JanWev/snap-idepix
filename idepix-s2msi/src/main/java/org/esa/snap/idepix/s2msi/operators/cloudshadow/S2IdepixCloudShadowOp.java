@@ -235,29 +235,26 @@ public class S2IdepixCloudShadowOp extends Operator {
             return new Product[]{s2ClassifProduct, s2BandsProduct};
         }
 
-        HashMap<String, Product> resamplingInput = new HashMap<>();
-        resamplingInput.put("sourceProduct", l1cProduct);
-        Map<String, Object> resamplingParams = new HashMap<>();
-        resamplingParams.put("upsampling", "Nearest");
-        resamplingParams.put("downsampling", "First");
-        resamplingParams.put("targetResolution", 60);
-        Product resampledProduct = GPF.createProduct("Resample", resamplingParams, resamplingInput);
+        // Keep shadow detection tied to the classification delivered at the input resolution. Reclassifying
+        // resampled reflectances here is expensive and can produce a different cloud population.
+        final Product resampledClassifProduct = resampleForCloudShadow(s2ClassifProduct);
+        final Product resampledBandsProduct = resampleForCloudShadow(s2BandsProduct);
+        return new Product[]{resampledClassifProduct, resampledBandsProduct};
+    }
 
-        HashMap<String, Product> classificationInput = new HashMap<>();
-        classificationInput.put("sourceProduct", resampledProduct);
-        Map<String, Object> classificationParams = new HashMap<>();
-        classificationParams.put("computeMountainShadow", false);
-        classificationParams.put("computeCloudShadow", false);
-        classificationParams.put("computeCloudBuffer", computeCloudBuffer);
-        classificationParams.put("cloudBufferWidth", cloudBufferWidth);
-        classificationParams.put("computeCloudBufferForCloudAmbiguous", computeCloudBufferForCloudAmbiguous);
-        classificationParams.put("cwThresh", cwThresh);
-        classificationParams.put("gclThresh", gclThresh);
-        classificationParams.put("clThresh", clThresh);
-        classificationParams.put("demName", demName);
+    private Product resampleForCloudShadow(Product sourceProduct) {
+        final HashMap<String, Product> resamplingInput = new HashMap<>();
+        resamplingInput.put("sourceProduct", sourceProduct);
+        return GPF.createProduct("Resample", createCloudShadowResamplingParameters(), resamplingInput);
+    }
 
-        Product resampledClassifProduct = GPF.createProduct("Idepix.S2", classificationParams, classificationInput);
-        return new Product[]{resampledClassifProduct, resampledClassifProduct};
+    static Map<String, Object> createCloudShadowResamplingParameters() {
+        final Map<String, Object> parameters = new HashMap<>();
+        parameters.put("upsampling", "Nearest");
+        parameters.put("downsampling", "Mean");
+        parameters.put("flagDownsampling", "FlagOr");
+        parameters.put("targetResolution", 60);
+        return parameters;
     }
 
     private Product prepareTargetProduct(int resolution, Product postProcessedProduct) {
@@ -269,7 +266,8 @@ public class S2IdepixCloudShadowOp extends Operator {
         resamplingInput.put("sourceProduct", postProcessedProduct);
         Map<String, Object> resamplingParams = new HashMap<>();
         resamplingParams.put("upsampling", "Nearest");
-        resamplingParams.put("downsampling", "First");
+        resamplingParams.put("downsampling", "Mean");
+        resamplingParams.put("flagDownsampling", "FlagOr");
         resamplingParams.put("targetResolution", resolution);
         return GPF.createProduct("Resample", resamplingParams, resamplingInput);
     }
