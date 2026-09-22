@@ -74,6 +74,10 @@ public class S2IdepixPreCloudShadowOp extends Operator {
     @Parameter(description = "Whether cloud-buffer pixels cast cloud shadows", defaultValue = "false")
     private boolean includeCloudBufferForShadow;
 
+    @Parameter(defaultValue = "B8A_B3", valueSet = {"B8A_B3", "B8_B11"},
+            description = "Spectral pair used for potential-shadow clustering.")
+    private String cloudShadowSpectralBands;
+
     private final static double MAX_CLOUD_HEIGHT = 8000.;
 
     private Band sourceBandClusterA;
@@ -95,8 +99,6 @@ public class S2IdepixPreCloudShadowOp extends Operator {
     static int clusterCountDefine = 4;
     static double OUTLIER_THRESHOLD = 0.94;
     static int searchBorderRadius;
-    private static final String sourceBandNameClusterA = "B8A";
-    private static final String sourceBandNameClusterB = "B3";
     private static final String sourceFlagName1 = "pixel_classif_flags";
     private final static String BAND_NAME_CLOUD_SHADOW = "FlagBand";
 
@@ -137,8 +139,8 @@ public class S2IdepixPreCloudShadowOp extends Operator {
 
         ProductUtils.copyGeoCoding(s2BandsProduct, targetProduct);
 
-        sourceBandClusterA = s2BandsProduct.getBand(sourceBandNameClusterA);
-        sourceBandClusterB = s2BandsProduct.getBand(sourceBandNameClusterB);
+        sourceBandClusterA = getClusterBand(s2BandsProduct, 0);
+        sourceBandClusterB = getClusterBand(s2BandsProduct, 1);
 
         final GeoPos centerGeoPos =
                 S2IdepixUtils.getCenterGeoPos(s2BandsProduct);
@@ -218,6 +220,20 @@ public class S2IdepixPreCloudShadowOp extends Operator {
         profileAdd(profileTotalNanos, totalStart);
         profileTileCompleted(targetRectangle);
 
+    }
+
+    private Band getClusterBand(Product product, int index) {
+        final String bandName;
+        try {
+            bandName = CloudShadowSpectralBands.fromParameter(cloudShadowSpectralBands).getBandName(index);
+        } catch (IllegalArgumentException e) {
+            throw new OperatorException("Unsupported cloud-shadow spectral bands: " + cloudShadowSpectralBands, e);
+        }
+        final Band band = product.getBand(bandName);
+        if (band == null) {
+            throw new OperatorException("Cloud-shadow spectral band '" + bandName + "' is missing.");
+        }
+        return band;
     }
 
     @Override

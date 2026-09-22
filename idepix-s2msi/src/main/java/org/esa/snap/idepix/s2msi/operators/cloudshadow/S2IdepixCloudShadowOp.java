@@ -70,6 +70,10 @@ public class S2IdepixCloudShadowOp extends Operator {
     @Parameter(description = "Whether cloud-buffer pixels cast cloud shadows", defaultValue = "false")
     private boolean includeCloudBufferForShadow;
 
+    @Parameter(defaultValue = "B8A_B3", valueSet = {"B8A_B3", "B8_B11"},
+            description = "Spectral pair used for potential-shadow clustering.")
+    private String cloudShadowSpectralBands;
+
     @Parameter(defaultValue = "true", label = " Compute a cloud buffer")
     private boolean computeCloudBuffer;
 
@@ -139,6 +143,7 @@ public class S2IdepixCloudShadowOp extends Operator {
         preParams.put("sunZenithMean", sunZenithMean);
         preParams.put("sunAzimuthMean", sunAzimuthMean);
         preParams.put("includeCloudBufferForShadow", includeCloudBufferForShadow);
+        preParams.put("cloudShadowSpectralBands", cloudShadowSpectralBands);
 
         //todo: test resolution of granule. Resample necessary bands to 60m. calculate cloud shadow on 60m.
         //todo: let mountain shadow benefit from higher resolution in DEM. Adjust sun zenith according to smoothing.
@@ -184,6 +189,7 @@ public class S2IdepixCloudShadowOp extends Operator {
         postParams.put("computeMountainShadow", computeMountainShadow);
         postParams.put("usePerCloudShadowMatching", usePerCloudShadowMatching);
         postParams.put("includeCloudBufferForShadow", includeCloudBufferForShadow);
+        postParams.put("cloudShadowSpectralBands", cloudShadowSpectralBands);
         postParams.put("bestOffset", bestOffset);
         postParams.put("mode", mode);
         postParams.put("sunZenithMean", sunZenithMean);

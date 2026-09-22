@@ -85,6 +85,10 @@ public class S2IdepixPostCloudShadowOp extends Operator {
     @Parameter(description = "Whether cloud-buffer pixels cast cloud shadows", defaultValue = "false")
     private boolean includeCloudBufferForShadow;
 
+    @Parameter(defaultValue = "B8A_B3", valueSet = {"B8A_B3", "B8_B11"},
+            description = "Spectral pair used for potential-shadow clustering.")
+    private String cloudShadowSpectralBands;
+
     @Parameter(description = "Offset along cloud path to minimum reflectance (over all tiles)", defaultValue = "0")
     private int bestOffset;
 
@@ -118,8 +122,6 @@ public class S2IdepixPostCloudShadowOp extends Operator {
 
     private static double spatialResolution;  //[m]
     static int clusterCountDefine = 4;
-    private static final String sourceBandNameClusterA = "B8A";
-    private static final String sourceBandNameClusterB = "B3";
     private static final String sourceFlagName1 = "pixel_classif_flags";
     private final static String BAND_NAME_CLOUD_SHADOW = "FlagBand";
     private final static String BAND_NAME_CLOUD_ID = "cloud_ids";
@@ -173,8 +175,8 @@ public class S2IdepixPostCloudShadowOp extends Operator {
         attachFlagCoding(targetBandCloudShadow);
         setupBitmasks(targetProduct);
 
-        sourceBandClusterA = s2BandsProduct.getBand(sourceBandNameClusterA);
-        sourceBandClusterB = s2BandsProduct.getBand(sourceBandNameClusterB);
+        sourceBandClusterA = getClusterBand(s2BandsProduct, 0);
+        sourceBandClusterB = getClusterBand(s2BandsProduct, 1);
 
         sourceAltitude = s2BandsProduct.getBand(S2IdepixConstants.ELEVATION_BAND_NAME);
 
@@ -451,6 +453,20 @@ public class S2IdepixPostCloudShadowOp extends Operator {
         profileAdd(profileOutputNanos, stageStart);
         profileAdd(profileTotalNanos, totalStart);
         profileTileCompleted(targetRectangle);
+    }
+
+    private Band getClusterBand(Product product, int index) {
+        final String bandName;
+        try {
+            bandName = CloudShadowSpectralBands.fromParameter(cloudShadowSpectralBands).getBandName(index);
+        } catch (IllegalArgumentException e) {
+            throw new OperatorException("Unsupported cloud-shadow spectral bands: " + cloudShadowSpectralBands, e);
+        }
+        final Band band = product.getBand(bandName);
+        if (band == null) {
+            throw new OperatorException("Cloud-shadow spectral band '" + bandName + "' is missing.");
+        }
+        return band;
     }
 
     @Override

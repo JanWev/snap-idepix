@@ -66,6 +66,12 @@ public class S2IdepixPostProcessOp extends Operator {
     @Parameter(defaultValue = "false", label = "Include cloud buffer in cloud-shadow detection")
     private boolean includeCloudBufferForShadow;
 
+    @Parameter(defaultValue = "B8A_B3", valueSet = {"B8A_B3", "B8_B11"},
+            label = "Cloud-shadow spectral bands",
+            description = "Spectral pair used for potential-shadow clustering. B8A/B3 is the established " +
+                    "IdePix setting; B8/B11 evaluates the Sentinel-2 NIR/SWIR1 pair used by Fmask-style shadow evidence.")
+    private String cloudShadowSpectralBands;
+
     @Parameter(defaultValue = "true", label = " Compute a cloud buffer")
     private boolean computeCloudBuffer;
 
@@ -140,6 +146,7 @@ public class S2IdepixPostProcessOp extends Operator {
             params.put("computeMountainShadow", false);
             params.put("usePerCloudShadowMatching", usePerCloudShadowMatching);
             params.put("includeCloudBufferForShadow", includeCloudBufferForShadow);
+            params.put("cloudShadowSpectralBands", cloudShadowSpectralBands);
             params.put("computeCloudBuffer", computeCloudBuffer);
             params.put("cloudBufferWidth", cloudBufferWidth);
             params.put("computeCloudBufferForCloudAmbiguous", computeCloudBufferForCloudAmbiguous);
