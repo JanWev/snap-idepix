@@ -43,7 +43,6 @@ import java.util.logging.Logger;
 public class S2IdepixCloudShadowOp extends Operator {
 
     private static final Logger LOGGER = SystemUtils.LOG;
-    private static final boolean PROFILE = Boolean.getBoolean("snap.idepix.s2msi.cloudshadow.profile");
 
     @SourceProduct(description = "The original input product")
     private Product l1cProduct;
@@ -108,7 +107,8 @@ public class S2IdepixCloudShadowOp extends Operator {
 
     @Override
     public void initialize() throws OperatorException {
-        final long initializeStartNanos = PROFILE ? System.nanoTime() : 0L;
+        // Diagnostic branch: log wall-clock phase times unconditionally to avoid launcher-property ambiguity.
+        final long initializeStartNanos = System.nanoTime();
         final TileCache tileCache = JAI.getDefaultInstance().getTileCache();
         final Observer observer = (o, arg) -> {
             if (arg instanceof CachedTile && ((CachedTile) arg).getAction() == 0) {
@@ -153,7 +153,7 @@ public class S2IdepixCloudShadowOp extends Operator {
 
         //trigger computation of all tiles
         LOGGER.info("Executing Cloud Shadow Preprocessing");
-        final long preprocessingStartNanos = PROFILE ? System.nanoTime() : 0L;
+        final long preprocessingStartNanos = System.nanoTime();
         if (tileCache instanceof SunTileCache) {
             ((SunTileCache) tileCache).enableDiagnostics();
             ((SunTileCache) tileCache).addObserver(observer);
@@ -164,11 +164,9 @@ public class S2IdepixCloudShadowOp extends Operator {
             ((SunTileCache) tileCache).deleteObserver(observer);
         }
         LOGGER.info("Executed Cloud Shadow Preprocessing");
-        if (PROFILE) {
-            LOGGER.info(String.format(
-                    "IdePix S2 cloud-shadow profile: fullScenePreprocessing=%.3fs, initializationThroughPreprocessing=%.3fs",
-                    elapsedSeconds(preprocessingStartNanos), elapsedSeconds(initializeStartNanos)));
-        }
+        LOGGER.info(String.format(
+                "IdePix S2 cloud-shadow profile: fullScenePreprocessing=%.3fs, initializationThroughPreprocessing=%.3fs",
+                elapsedSeconds(preprocessingStartNanos), elapsedSeconds(initializeStartNanos)));
 
         NCloudOverLand = cloudShadowPreProcessingOperator.getNCloudOverLandPerTile();
         NCloudOverWater = cloudShadowPreProcessingOperator.getNCloudOverWaterPerTile();
@@ -205,10 +203,8 @@ public class S2IdepixCloudShadowOp extends Operator {
         Product postProduct = GPF.createProduct("Idepix.S2.CloudShadow.Postprocess", postParams, postInput);
 
         setTargetProduct(prepareTargetProduct(sourceResolution, postProduct));
-        if (PROFILE) {
-            LOGGER.info(String.format("IdePix S2 cloud-shadow profile: initializationTotal=%.3fs",
-                    elapsedSeconds(initializeStartNanos)));
-        }
+        LOGGER.info(String.format("IdePix S2 cloud-shadow profile: initializationTotal=%.3fs",
+                elapsedSeconds(initializeStartNanos)));
     }
 
     private static double elapsedSeconds(long startNanos) {
