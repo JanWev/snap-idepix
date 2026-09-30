@@ -52,7 +52,8 @@ public class S2IdepixPreCloudShadowOp extends Operator {
     private final AtomicInteger profileTiles = new AtomicInteger();
     private final AtomicBoolean profileLogged = new AtomicBoolean();
     private final LongAdder profileGeometryNanos = new LongAdder();
-    private final LongAdder profilePreparationNanos = new LongAdder();
+    private final LongAdder profileSourceReadNanos = new LongAdder();
+    private final LongAdder profileMaskPreparationNanos = new LongAdder();
     private final LongAdder profileBulkShiftNanos = new LongAdder();
     private final LongAdder profileTotalNanos = new LongAdder();
 
@@ -190,6 +191,7 @@ public class S2IdepixPreCloudShadowOp extends Operator {
         stageStart = profileStart();
         Tile sourceTileFlag1 = getSourceTile(sourceBandFlag1, sourceRectangle, new BorderExtenderConstant(new double[]{Double.NaN}));
         if (skipInvalidTiles && CloudShadowUtils.isCompletelyInvalid(sourceTileFlag1)) {
+            profileAdd(profileSourceReadNanos, stageStart);
             profileAdd(profileTotalNanos, totalStart);
             profileTileCompleted(targetRectangle);
             return;
@@ -201,13 +203,15 @@ public class S2IdepixPreCloudShadowOp extends Operator {
 
         final float[][] clusterData = {getSamples(sourceBandClusterA, sourceRectangle),
                 getSamples(sourceBandClusterB, sourceRectangle)};
+        profileAdd(profileSourceReadNanos, stageStart);
+        stageStart = profileStart();
 
         FlagDetector flagDetector = new FlagDetector(
                 sourceTileFlag1, sourceRectangle, includeCloudBufferForShadow);
 
         PreparationMaskBand.prepareMaskBand(s2ClassifProduct.getSceneRasterWidth(),
                 s2ClassifProduct.getSceneRasterHeight(), sourceRectangle, flagArray, flagDetector);
-        profileAdd(profilePreparationNanos, stageStart);
+        profileAdd(profileMaskPreparationNanos, stageStart);
         stageStart = profileStart();
 
         final CloudBulkShifter cloudBulkShifter = new CloudBulkShifter();
@@ -232,9 +236,9 @@ public class S2IdepixPreCloudShadowOp extends Operator {
     void logProfile() {
         if (profileLogged.compareAndSet(false, true)) {
             getLogger().info(String.format(
-                    "IdePix S2 cloud-shadow pre profile: tiles=%d, geometry=%.3fs, preparation=%.3fs, " +
+                    "IdePix S2 cloud-shadow pre profile: tiles=%d, geometry=%.3fs, sourceReads=%.3fs, maskPreparation=%.3fs, " +
                             "bulkShift=%.3fs, total=%.3fs",
-                    profileTiles.get(), seconds(profileGeometryNanos), seconds(profilePreparationNanos),
+                    profileTiles.get(), seconds(profileGeometryNanos), seconds(profileSourceReadNanos), seconds(profileMaskPreparationNanos),
                     seconds(profileBulkShiftNanos), seconds(profileTotalNanos)));
         }
     }
@@ -259,9 +263,9 @@ public class S2IdepixPreCloudShadowOp extends Operator {
             if (completed % PROFILE_INTERVAL == 0) {
                 getLogger().info(String.format(
                         "IdePix S2 cloud-shadow pre progress: completedTiles=%d, lastTile=%s, geometry=%.3fs, " +
-                                "preparation=%.3fs, bulkShift=%.3fs, total=%.3fs",
+                                "sourceReads=%.3fs, maskPreparation=%.3fs, bulkShift=%.3fs, total=%.3fs",
                         completed, targetRectangle, seconds(profileGeometryNanos),
-                        seconds(profilePreparationNanos), seconds(profileBulkShiftNanos),
+                        seconds(profileSourceReadNanos), seconds(profileMaskPreparationNanos), seconds(profileBulkShiftNanos),
                         seconds(profileTotalNanos)));
             }
         }
