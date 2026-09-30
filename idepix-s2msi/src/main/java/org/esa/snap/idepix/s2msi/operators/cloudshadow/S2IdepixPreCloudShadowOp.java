@@ -27,6 +27,7 @@ import java.awt.Rectangle;
 import java.awt.geom.Point2D;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -43,11 +44,13 @@ import java.util.concurrent.atomic.LongAdder;
 
 public class S2IdepixPreCloudShadowOp extends Operator {
 
-    private static final boolean PROFILE = Boolean.getBoolean("snap.idepix.s2msi.cloudshadow.profile");
+    // Diagnostic branch: collect preprocessing stage timings unconditionally.
+    private static final boolean PROFILE = true;
     private static final int PROFILE_INTERVAL = Math.max(1,
             Integer.getInteger("snap.idepix.s2msi.cloudshadow.profile.interval", 10));
 
     private final AtomicInteger profileTiles = new AtomicInteger();
+    private final AtomicBoolean profileLogged = new AtomicBoolean();
     private final LongAdder profileGeometryNanos = new LongAdder();
     private final LongAdder profilePreparationNanos = new LongAdder();
     private final LongAdder profileBulkShiftNanos = new LongAdder();
@@ -222,14 +225,18 @@ public class S2IdepixPreCloudShadowOp extends Operator {
 
     @Override
     public void dispose() {
-        if (PROFILE) {
+        logProfile();
+        super.dispose();
+    }
+
+    void logProfile() {
+        if (profileLogged.compareAndSet(false, true)) {
             getLogger().info(String.format(
                     "IdePix S2 cloud-shadow pre profile: tiles=%d, geometry=%.3fs, preparation=%.3fs, " +
                             "bulkShift=%.3fs, total=%.3fs",
                     profileTiles.get(), seconds(profileGeometryNanos), seconds(profilePreparationNanos),
                     seconds(profileBulkShiftNanos), seconds(profileTotalNanos)));
         }
-        super.dispose();
     }
 
     private static long profileStart() {

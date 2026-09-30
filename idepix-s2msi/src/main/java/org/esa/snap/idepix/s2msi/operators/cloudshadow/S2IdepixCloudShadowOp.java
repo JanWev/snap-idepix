@@ -164,6 +164,7 @@ public class S2IdepixCloudShadowOp extends Operator {
             ((SunTileCache) tileCache).deleteObserver(observer);
         }
         LOGGER.info("Executed Cloud Shadow Preprocessing");
+        cloudShadowPreProcessingOperator.logProfile();
         LOGGER.info(String.format(
                 "IdePix S2 cloud-shadow profile: fullScenePreprocessing=%.3fs, initializationThroughPreprocessing=%.3fs",
                 elapsedSeconds(preprocessingStartNanos), elapsedSeconds(initializeStartNanos)));
