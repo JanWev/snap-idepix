@@ -171,7 +171,8 @@ public class S2IdepixPostProcessOp extends Operator {
                     params, input, null);
 
             cloudShadowProduct = cloudShadowOp.getTargetProduct();
-            gpf.executeOperator(cloudShadowOp);
+            // Keep the operator and its target product alive for the complete post-processing lifecycle.
+            // Evaluation remains demand-driven when the target tiles request this source band.
         }
 
         ProductUtils.copyBand(IDEPIX_CLASSIF_FLAGS, s2ClassifProduct, postProcessedCloudProduct, false);
